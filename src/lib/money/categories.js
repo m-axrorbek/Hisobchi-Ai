@@ -6,8 +6,15 @@ const CATEGORY_ALIASES = {
   sut: "oziq-ovqat",
   silyos: "oziq-ovqat",
   kartoshka: "oziq-ovqat",
+  piyoz: "oziq-ovqat",
+  tuxum: "oziq-ovqat",
+  semichka: "oziq-ovqat",
   qatiq: "oziq-ovqat",
   market: "oziq-ovqat",
+  ichimlik: "ichimlik",
+  suv: "ichimlik",
+  cola: "ichimlik",
+  sharbat: "ichimlik",
   transport: "transport",
   benzin: "transport",
   taksi: "transport",
@@ -21,7 +28,8 @@ const CATEGORY_ALIASES = {
 };
 
 const CATEGORY_KEYWORDS = [
-  { category: "oziq-ovqat", keywords: ["ovqat", "non", "sut", "silyos", "kartoshka", "qatiq", "go'sht", "gosht", "meva", "sabzavot"] },
+  { category: "oziq-ovqat", keywords: ["ovqat", "non", "sut", "silyos", "kartoshka", "piyoz", "tuxum", "semichka", "qatiq", "go'sht", "gosht", "meva", "sabzavot"] },
+  { category: "ichimlik", keywords: ["suv", "cola", "sharbat", "fanta", "pepsi", "ichimlik"] },
   { category: "transport", keywords: ["benzin", "taksi", "metro", "avtobus", "yol", "yo'l"] },
   { category: "kiyim", keywords: ["kiyim", "oyoq kiyim", "poyabzal", "etik", "ko'ylak", "kurtka"] },
   { category: "sog'liq", keywords: ["dori", "shifoxona", "tabletka", "analiz"] },
@@ -30,6 +38,7 @@ const CATEGORY_KEYWORDS = [
 
 export const CATEGORY_OPTIONS = [
   "oziq-ovqat",
+  "ichimlik",
   "transport",
   "kiyim",
   "sog'liq",

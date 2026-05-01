@@ -47,6 +47,7 @@ export const createMoneyRecord = (input = {}, options = {}) => {
     type,
     item: itemLabel,
     quantity,
+    unit: normalizeUnitValue(input.unit),
     unit_price: unitPrice,
     amount,
     line_items: lineItems,
@@ -231,6 +232,11 @@ const sumLineItemAmounts = (lineItems) =>
   lineItems.reduce((total, lineItem) => total + (typeof lineItem.amount === "number" ? lineItem.amount : 0), 0);
 
 const cleanText = (value) => String(value || "").trim();
+
+const normalizeUnitValue = (value) => {
+  const text = cleanText(value);
+  return text || null;
+};
 
 const getDefaultItem = (type) => {
   if (type === "debt_taken") return "qarz oldim";

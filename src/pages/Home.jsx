@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PencilLine } from "lucide-react";
+import FeedbackToast from "../components/FeedbackToast";
 import VoiceInput from "../components/VoiceInput";
 import ManualRecordSheet from "../components/ManualRecordSheet";
 import DebtResolutionSheet from "../components/DebtResolutionSheet";
@@ -27,6 +28,20 @@ const Home = () => {
   const [feedback, setFeedback] = useState(null);
   const [clarificationState, setClarificationState] = useState(null);
 
+  useEffect(() => {
+    if (!feedback) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [feedback]);
+
   const handleVoiceSend = async (text) => {
     const cleaned = cleanUzbekInput(text);
     if (!cleaned) {
@@ -52,6 +67,11 @@ const Home = () => {
           nextValue: cleaned,
           statusText: "Matnni aniqlashtirib qayta yuboring."
         };
+      }
+
+      const blockingDraft = drafts.find((draft) => draft.intent === "clarify" || draft.intent === "off_topic");
+      if (blockingDraft) {
+        return handleDraft(blockingDraft, sourceText);
       }
 
       for (const draft of drafts) {
@@ -97,20 +117,28 @@ const Home = () => {
     }
 
     if (draft.intent === "clarify") {
-      setClarificationState({
-        sourceText,
-        question: draft.question
-      });
+      const preserveSourceText = Boolean(draft.preserveSourceText);
+
+      setClarificationState(
+        preserveSourceText
+          ? null
+          : {
+              sourceText,
+              question: draft.question
+            }
+      );
       setFeedback({
         tone: "warning",
         text: draft.question
       });
-      setInput("");
+      setInput(preserveSourceText ? sourceText : "");
       return {
         outcome: "clarify",
         keepEditor: true,
-        nextValue: "",
-        statusText: "Javobni yozing, men oldingi gap bilan birga tushunaman."
+        nextValue: preserveSourceText ? sourceText : "",
+        statusText: preserveSourceText
+          ? "Eski matn ichiga summani qo'shib qayta yuboring."
+          : "Javobni yozing, men oldingi gap bilan birga tushunaman."
       };
     }
 
@@ -262,17 +290,7 @@ const Home = () => {
         </CardContent>
       </Card>
 
-      {feedback ? (
-        <Card className={feedback.tone === "warning" ? "border-ink-300 dark:border-ink-700" : ""}>
-          <CardContent
-            className="py-4 text-sm text-ink-700 dark:text-ink-200"
-            role={feedback.tone === "warning" ? "alert" : "status"}
-            aria-live={feedback.tone === "warning" ? "assertive" : "polite"}
-          >
-            {feedback.text}
-          </CardContent>
-        </Card>
-      ) : null}
+      <FeedbackToast feedback={feedback} />
 
       {isParsing ? <p className="text-xs text-ink-500 dark:text-ink-400" role="status" aria-live="polite">AI yozuvni tahlil qilmoqda...</p> : null}
 

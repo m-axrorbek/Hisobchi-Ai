@@ -22,6 +22,25 @@ export const formatCompactMoney = (amount, currency = "UZS") => {
 
 export const formatAmountNumber = (amount) => INTEGER_FORMATTER.format(toMoneyNumber(amount));
 
+export const formatCompactAmountNumber = (amount) => {
+  const value = toMoneyNumber(amount);
+  const absoluteValue = Math.abs(value);
+
+  if (absoluteValue >= 1000000000) {
+    return `${formatScaled(value / 1000000000)} mlrd`;
+  }
+
+  if (absoluteValue >= 1000000) {
+    return `${formatScaled(value / 1000000)} mln`;
+  }
+
+  if (absoluteValue >= 1000) {
+    return `${formatScaled(value / 1000)} ming`;
+  }
+
+  return formatAmountNumber(value);
+};
+
 const formatScaled = (value) => {
   const rounded = Math.round(value * 10) / 10;
   if (Number.isInteger(rounded)) {

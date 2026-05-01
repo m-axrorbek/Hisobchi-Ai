@@ -1,8 +1,5 @@
-import { analyzeAssistantInput, splitAssistantSegments } from "./assistant/parse.js";
+import { analyzeAssistantInput, assistantResultToLegacyDrafts, splitAssistantSegments } from "./assistant/parse.js";
 
-export const parseMoneyText = (text) =>
-  splitAssistantSegments(text)
-    .map((segment) => analyzeAssistantInput(segment))
-    .filter(Boolean);
+export const parseMoneyText = (text) => analyzeAssistantInput(text);
 
-export { analyzeAssistantInput, splitAssistantSegments };
+export { analyzeAssistantInput, assistantResultToLegacyDrafts, splitAssistantSegments };

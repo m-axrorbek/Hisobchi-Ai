@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { buildMoneyAnalytics, getVisibleRecords } from "../lib/money/analytics.js";
-import { formatCompactMoney, formatMoney } from "../lib/money/format.js";
+import { formatCompactAmountNumber, formatCompactMoney, formatMoney } from "../lib/money/format.js";
 import { useMoneyStore } from "../store/useMoneyStore";
 
 const tooltipProps = {
@@ -26,7 +26,27 @@ const tooltipProps = {
     color: "var(--tooltip-text)"
   },
   itemStyle: { color: "var(--tooltip-text)" },
-  labelStyle: { color: "var(--tooltip-text)" }
+  labelStyle: { color: "var(--tooltip-text)" },
+  formatter: (value) => [formatMoney(value), "Summa"]
+};
+
+const chartMargin = { top: 8, right: 8, left: 0, bottom: 0 };
+const axisTickFormatter = (value) => formatCompactAmountNumber(value);
+const axisProps = {
+  stroke: "var(--chart-axis)",
+  tickLine: false,
+  axisLine: false,
+  width: 80,
+  tickMargin: 10,
+  tickFormatter: axisTickFormatter,
+  allowDecimals: false
+};
+const xAxisProps = {
+  stroke: "var(--chart-axis)",
+  tickLine: false,
+  axisLine: false,
+  tickMargin: 8,
+  minTickGap: 18
 };
 
 const Analytics = () => {
@@ -72,10 +92,10 @@ const Analytics = () => {
           <CardContent className="h-72">
             <div className="h-full" aria-hidden="true">
               <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.charts.daily}>
+              <BarChart data={stats.charts.daily} margin={chartMargin}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(127,127,127,0.18)" />
-                <XAxis dataKey="label" stroke="var(--chart-axis)" tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--chart-axis)" tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" {...xAxisProps} />
+                <YAxis {...axisProps} />
                 <Tooltip {...tooltipProps} />
                 <Bar dataKey="amount" fill="var(--chart-bar)" radius={[10, 10, 0, 0]} />
               </BarChart>
@@ -125,10 +145,10 @@ const Analytics = () => {
           <CardContent className="h-72">
             <div className="h-full" aria-hidden="true">
               <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.charts.weekly}>
+              <LineChart data={stats.charts.weekly} margin={chartMargin}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(127,127,127,0.18)" />
-                <XAxis dataKey="label" stroke="var(--chart-axis)" tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--chart-axis)" tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" {...xAxisProps} />
+                <YAxis {...axisProps} />
                 <Tooltip {...tooltipProps} />
                 <Line type="monotone" dataKey="amount" stroke="var(--chart-bar)" strokeWidth={2.5} dot={false} />
               </LineChart>
@@ -145,10 +165,10 @@ const Analytics = () => {
           <CardContent className="h-72">
             <div className="h-full" aria-hidden="true">
               <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.charts.monthly}>
+              <BarChart data={stats.charts.monthly} margin={chartMargin}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(127,127,127,0.18)" />
-                <XAxis dataKey="label" stroke="var(--chart-axis)" tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--chart-axis)" tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" {...xAxisProps} />
+                <YAxis {...axisProps} />
                 <Tooltip {...tooltipProps} />
                 <Bar dataKey="amount" fill="var(--chart-bar)" radius={[10, 10, 0, 0]} />
               </BarChart>
