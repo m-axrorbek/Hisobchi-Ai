@@ -1,0 +1,13 @@
+node_modules
+server/node_modules
+dist
+.env
+server/.env
+*.log
+*.out
+*.err
+build.log
+build_err.json
+build_error.log
+build_out.txt
+.vercel
