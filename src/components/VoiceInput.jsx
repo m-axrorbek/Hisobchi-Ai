@@ -244,8 +244,10 @@ const VoiceInput = ({
         }
       } else if (recognitionTranscriptRef.current) {
         text = recognitionTranscriptRef.current;
-      } else if (audioBlob) {
+      } else if (audioBlob && hasRemoteStt) {
         text = await transcribeAudio(audioBlob);
+      } else {
+        throw new Error("BROWSER_STT_EMPTY");
       }
 
       const cleaned = cleanUzbekInput(text);
@@ -535,9 +537,15 @@ const resolveVoiceError = (error, hasBrowserFallback) => {
     return "Ovozdan tushunarli matn chiqmedi. Iltimos, yana bir marta ayting.";
   }
   if (message === "UZBEKVOICE_KEY_MISSING") {
+    return "UzbekVoice STT kaliti topilmadi. Sozlamani tekshirib qayta urinib ko'ring.";
+  }
+  if (message === "UZBEKVOICE_SERVER_KEY_MISSING") {
+    return "Vercel serverida UzbekVoice STT kaliti yo'q. Environment variable ni qo'shing.";
+  }
+  if (message === "BROWSER_STT_EMPTY") {
     return hasBrowserFallback
-      ? "UzbekVoice ishlamadi, brauzer orqali qayta urinib ko'ring."
-      : "UzbekVoice STT kaliti yo'q.";
+      ? "Brauzer ovozdan matn chiqara olmadi. Qayta yozib yoki boshqa brauzerda urinib ko'ring."
+      : "Ovozdan matn olinmadi. Qayta urinib ko'ring.";
   }
   if (message === "EMPTY_AUDIO") {
     return "Bo'sh audio yuborildi. Yana bir marta yozib ko'ring.";

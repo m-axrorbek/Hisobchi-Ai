@@ -13,8 +13,11 @@ const AUDIO_EXTENSION_BY_TYPE = {
   "audio/mpeg": "mp3"
 };
 
-export const hasUzbekVoiceKey = () => Boolean(UZBEKVOICE_API_KEY);
-export const hasUzbekVoiceTtsKey = () => Boolean(UZBEKVOICE_TTS_KEY || UZBEKVOICE_API_KEY);
+const isServerProxyEndpoint = (value) => typeof value === "string" && value.startsWith("/api/");
+
+export const hasUzbekVoiceKey = () => Boolean(UZBEKVOICE_API_KEY || isServerProxyEndpoint(STT_ENDPOINT));
+export const hasUzbekVoiceTtsKey = () =>
+  Boolean(UZBEKVOICE_TTS_KEY || UZBEKVOICE_API_KEY || isServerProxyEndpoint(TTS_ENDPOINT));
 
 const getAudioFilename = (blob) => {
   const extension = AUDIO_EXTENSION_BY_TYPE[blob?.type] || "webm";
@@ -40,7 +43,7 @@ const readErrorMessage = async (response) => {
 };
 
 export const transcribeAudio = async (blob) => {
-  if (!UZBEKVOICE_API_KEY) {
+  if (!UZBEKVOICE_API_KEY && !isServerProxyEndpoint(STT_ENDPOINT)) {
     throw new Error("UZBEKVOICE_KEY_MISSING");
   }
 
@@ -61,12 +64,16 @@ export const transcribeAudio = async (blob) => {
 
   let response;
   try {
+    const headers = {
+      Accept: "application/json"
+    };
+    if (UZBEKVOICE_API_KEY) {
+      headers.Authorization = UZBEKVOICE_API_KEY;
+    }
+
     response = await fetch(STT_ENDPOINT, {
       method: "POST",
-      headers: {
-        Authorization: UZBEKVOICE_API_KEY,
-        Accept: "application/json"
-      },
+      headers,
       body: form,
       signal: controller.signal
     });
@@ -98,17 +105,21 @@ export const transcribeAudio = async (blob) => {
 
 export const synthesizeSpeech = async (text) => {
   const apiKey = UZBEKVOICE_TTS_KEY || UZBEKVOICE_API_KEY;
-  if (!apiKey) {
+  if (!apiKey && !isServerProxyEndpoint(TTS_ENDPOINT)) {
     throw new Error("UZBEKVOICE_TTS_KEY_MISSING");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "application/json, audio/mpeg, audio/wav, audio/*"
+  };
+  if (apiKey) {
+    headers.Authorization = apiKey;
   }
 
   const response = await fetch(TTS_ENDPOINT, {
     method: "POST",
-    headers: {
-      Authorization: apiKey,
-      "Content-Type": "application/json",
-      Accept: "application/json, audio/mpeg, audio/wav, audio/*"
-    },
+    headers,
     body: JSON.stringify({
       text,
       model: UZBEKVOICE_TTS_MODEL,

@@ -7,12 +7,13 @@ export const config = {
 };
 
 const buildHeaders = (headers, bodyLength) => {
+  const authorization = headers.authorization || process.env.UZBEKVOICE_API_KEY || "";
   const nextHeaders = {
     Accept: "application/json"
   };
 
-  if (headers.authorization) {
-    nextHeaders.Authorization = headers.authorization;
+  if (authorization) {
+    nextHeaders.Authorization = authorization;
   }
   if (headers["content-type"]) {
     nextHeaders["Content-Type"] = headers["content-type"];
@@ -28,6 +29,10 @@ export default async function handler(request, response) {
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
     return response.status(405).json({ message: "METHOD_NOT_ALLOWED" });
+  }
+
+  if (!request.headers.authorization && !process.env.UZBEKVOICE_API_KEY) {
+    return response.status(500).json({ message: "UZBEKVOICE_SERVER_KEY_MISSING" });
   }
 
   try {

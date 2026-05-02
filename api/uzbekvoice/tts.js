@@ -4,11 +4,17 @@ export default async function handler(request, response) {
     return response.status(405).json({ message: "METHOD_NOT_ALLOWED" });
   }
 
+  const authorization =
+    request.headers.authorization || process.env.UZBEKVOICE_TTS_KEY || process.env.UZBEKVOICE_API_KEY || "";
+  if (!authorization) {
+    return response.status(500).json({ message: "UZBEKVOICE_SERVER_KEY_MISSING" });
+  }
+
   try {
     const upstream = await fetch("https://uzbekvoice.ai/api/v1/tts", {
       method: "POST",
       headers: {
-        Authorization: request.headers.authorization || "",
+        Authorization: authorization,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(request.body || {})

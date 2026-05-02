@@ -189,8 +189,10 @@ Set these in the Vercel project:
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
-- `VITE_UZBEKVOICE_API_KEY`
-- `VITE_UZBEKVOICE_TTS_KEY`
+- `UZBEKVOICE_API_KEY`
+- `UZBEKVOICE_TTS_KEY`
+- `VITE_UZBEKVOICE_API_KEY` optional for local/dev-style client auth
+- `VITE_UZBEKVOICE_TTS_KEY` optional for local/dev-style client auth
 - `VITE_UZBEKVOICE_TTS_MODEL`
 - `VITE_UZBEKVOICE_STT_URL=/api/uzbekvoice/stt`
 - `VITE_UZBEKVOICE_TTS_URL=/api/uzbekvoice/tts`
