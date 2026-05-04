@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Textarea } from "./ui/textarea";
 import { transcribeAudio, hasUzbekVoiceKey } from "../lib/uzbekVoice";
 import { cleanUzbekInput } from "../lib/cleaner";
-import { warmupAudioPlayback } from "../lib/voice";
 
 const VoiceInput = ({
   value,
@@ -33,15 +32,11 @@ const VoiceInput = ({
   const [voiceError, setVoiceError] = useState("");
   const [statusText, setStatusText] = useState("");
   const recorderRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const recognitionTranscriptRef = useRef("");
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
   const audioRef = useRef(null);
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const canRecord = Boolean(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
-  const canUseBrowserSpeech = Boolean(SpeechRecognition);
+  const canRecord = Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
   const hasRemoteStt = hasUzbekVoiceKey();
 
   const stopTracks = useCallback(() => {
@@ -58,88 +53,39 @@ const VoiceInput = ({
     setIsPlaying(false);
   }, []);
 
-  const stopBrowserRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.onresult = null;
-      recognitionRef.current.onerror = null;
-      recognitionRef.current.onend = null;
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
-  }, []);
-
   const resetAudio = useCallback(({ clearTranscript = false } = {}) => {
     stopPlayback();
-    stopBrowserRecognition();
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
     }
     setAudioUrl("");
     setAudioBlob(null);
-    recognitionTranscriptRef.current = "";
     if (clearTranscript) {
       setTranscriptPreview("");
     }
-  }, [audioUrl, stopPlayback, stopBrowserRecognition]);
+  }, [audioUrl, stopPlayback]);
 
   useEffect(() => {
     return () => {
       stopTracks();
       stopPlayback();
-      stopBrowserRecognition();
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
     };
-  }, [audioUrl, stopPlayback, stopTracks, stopBrowserRecognition]);
-
-  const startBrowserRecognition = useCallback(() => {
-    if (!canUseBrowserSpeech) {
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = "uz-UZ";
-      recognition.interimResults = true;
-      recognition.continuous = true;
-      recognition.maxAlternatives = 1;
-
-      recognition.onresult = (event) => {
-        const text = Array.from(event.results)
-          .map((result) => result[0]?.transcript || "")
-          .join(" ")
-          .trim();
-
-        if (!text) {
-          return;
-        }
-
-        const cleaned = cleanUzbekInput(text);
-        recognitionTranscriptRef.current = cleaned;
-        setTranscriptPreview(cleaned);
-      };
-
-      recognition.onerror = () => {
-        // UzbekVoice STT stays the main path.
-      };
-
-      recognition.onend = () => {
-        recognitionRef.current = null;
-      };
-
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch (_error) {
-      recognitionRef.current = null;
-    }
-  }, [SpeechRecognition, canUseBrowserSpeech]);
+  }, [audioUrl, stopPlayback, stopTracks]);
 
   const startRecording = async () => {
     try {
+      if (!window.isSecureContext) {
+        throw new Error("INSECURE_CONTEXT");
+      }
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        throw new Error("RECORDER_UNAVAILABLE");
+      }
+
       setVoiceError("");
       setStatusText("");
-      await warmupAudioPlayback();
       resetAudio();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -154,7 +100,6 @@ const VoiceInput = ({
       const recorder = recorderOptions ? new MediaRecorder(stream, recorderOptions) : new MediaRecorder(stream);
       recorderRef.current = recorder;
       chunksRef.current = [];
-      recognitionTranscriptRef.current = "";
       setTranscriptPreview("");
 
       recorder.ondataavailable = (event) => {
@@ -163,9 +108,16 @@ const VoiceInput = ({
         }
       };
 
+      recorder.onerror = () => {
+        setVoiceError("Ovoz yozishni boshlab bo'lmadi. Safari yoki Chrome da qayta urinib ko'ring.");
+        setStatusText("");
+        setIsRecording(false);
+        stopTracks();
+      };
+
       recorder.onstop = () => {
         stopTracks();
-        stopBrowserRecognition();
+        recorderRef.current = null;
         const mimeType = recorder.mimeType || recorderOptions?.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mimeType });
 
@@ -180,20 +132,27 @@ const VoiceInput = ({
         setStatusText("Yozuv tayyor. Endi matnga o'tkazing.");
       };
 
-      recorder.start(250);
-      startBrowserRecognition();
+      recorder.start();
       setStatusText("Tinglanmoqda...");
       setIsRecording(true);
     } catch (error) {
       console.error(error);
-      setVoiceError("Mikrofonga ruxsat bering va qayta urinib ko'ring.");
+      setVoiceError(resolveRecordingError(error));
+      setStatusText("");
+      setIsRecording(false);
       stopTracks();
     }
   };
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current?.state === "recording") {
+      try {
+        recorderRef.current.requestData?.();
+      } catch (_error) {
+        // Some mobile browsers do not support requestData during stop.
+      }
       recorderRef.current.stop();
+      setStatusText("Yozuv yakunlanmoqda...");
     }
     setIsRecording(false);
   }, []);
@@ -222,7 +181,7 @@ const VoiceInput = ({
   };
 
   const handleTranscribe = async () => {
-    if ((!audioBlob && !recognitionTranscriptRef.current) || isTranscribing || isSubmittingText) {
+    if (!audioBlob || isTranscribing || isSubmittingText) {
       return;
     }
 
@@ -231,25 +190,7 @@ const VoiceInput = ({
     setStatusText(hasRemoteStt ? "UzbekVoice matn chiqaryapti..." : "Matnga aylantirilmoqda...");
 
     try {
-      let text = "";
-
-      if (hasRemoteStt && audioBlob) {
-        try {
-          text = await transcribeAudio(audioBlob);
-        } catch (error) {
-          if (!recognitionTranscriptRef.current) {
-            throw error;
-          }
-          text = recognitionTranscriptRef.current;
-        }
-      } else if (recognitionTranscriptRef.current) {
-        text = recognitionTranscriptRef.current;
-      } else if (audioBlob && hasRemoteStt) {
-        text = await transcribeAudio(audioBlob);
-      } else {
-        throw new Error("BROWSER_STT_EMPTY");
-      }
-
+      const text = await transcribeAudio(audioBlob);
       const cleaned = cleanUzbekInput(text);
       if (!cleaned) {
         throw new Error("EMPTY_TRANSCRIPT");
@@ -261,7 +202,7 @@ const VoiceInput = ({
       resetAudio();
     } catch (error) {
       console.error(error);
-      setVoiceError(resolveVoiceError(error, canUseBrowserSpeech));
+      setVoiceError(resolveVoiceError(error));
       setStatusText("");
     } finally {
       setIsTranscribing(false);
@@ -279,7 +220,6 @@ const VoiceInput = ({
     setStatusText("Tahrirlangan matn yuborilmoqda...");
 
     try {
-      await warmupAudioPlayback();
       setTranscriptPreview(cleaned);
       onChange?.(cleaned);
       const result = await onSendText(cleaned);
@@ -313,13 +253,11 @@ const VoiceInput = ({
     onChange?.("");
   };
 
-  const micDisabled = (!hasRemoteStt && !canUseBrowserSpeech) || isTranscribing || isSubmittingText || !canRecord;
+  const micDisabled = !hasRemoteStt || isTranscribing || isSubmittingText || !canRecord;
   const showEditor = forceEditor || Boolean(value?.trim());
   const helperText =
-    voiceError ||
-    statusText ||
-    (isRecording ? t("recording") : hasRemoteStt || canUseBrowserSpeech ? t("aiReady") : t("sttMissing"));
-  const showHelperText = Boolean(voiceError || statusText || isRecording || (!hasRemoteStt && !canUseBrowserSpeech));
+    voiceError || statusText || (isRecording ? t("recording") : hasRemoteStt ? t("aiReady") : t("sttMissing"));
+  const showHelperText = Boolean(voiceError || statusText || isRecording || !hasRemoteStt || !canRecord);
   const micTitle = micLabel || (isRecording ? t("stopRecording") : t("startRecording"));
 
   if (variant === "dock") {
@@ -459,7 +397,7 @@ const VoiceInput = ({
             <Trash2 className="h-4 w-4" /> {t("clearInput")}
           </Button>
           <span className={`text-sm ${voiceError ? "text-red-500" : "text-ink-500"}`} aria-hidden="true">
-            {voiceError || statusText || (isRecording ? t("recording") : hasRemoteStt || canUseBrowserSpeech ? t("aiReady") : t("sttMissing"))}
+            {voiceError || statusText || (isRecording ? t("recording") : hasRemoteStt ? t("aiReady") : t("sttMissing"))}
           </span>
         </div>
 
@@ -527,7 +465,33 @@ const getRecorderOptions = () => {
   return supported ? { mimeType: supported, audioBitsPerSecond: 128000 } : undefined;
 };
 
-const resolveVoiceError = (error, hasBrowserFallback) => {
+const resolveRecordingError = (error) => {
+  const message = String(error?.message || "");
+  const name = String(error?.name || "");
+
+  if (message === "INSECURE_CONTEXT") {
+    return "Telefon mikrofoni uchun sayt HTTPS orqali ochilishi kerak.";
+  }
+  if (message === "RECORDER_UNAVAILABLE") {
+    return "Bu brauzer ovoz yozishni qo'llamayapti. Safari yoki Chrome da ochib ko'ring.";
+  }
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return "Mikrofon ruxsatini yoqing va qayta urinib ko'ring.";
+  }
+  if (name === "NotFoundError") {
+    return "Mikrofon topilmadi.";
+  }
+  if (name === "NotReadableError" || name === "AbortError") {
+    return "Telefon mikrofoni band yoki yozuvni boshlab bo'lmadi. Boshqa ilovani yoping va qayta urinib ko'ring.";
+  }
+  if (name === "SecurityError") {
+    return "Mikrofon uchun sahifani oddiy brauzerda oching. Ilova ichidagi brauzerlar xato berishi mumkin.";
+  }
+
+  return "Ovoz yozishni boshlab bo'lmadi. Safari yoki Chrome da qayta urinib ko'ring.";
+};
+
+const resolveVoiceError = (error) => {
   const message = String(error?.message || "");
 
   if (message === "UZBEKVOICE_TIMEOUT") {
@@ -542,11 +506,6 @@ const resolveVoiceError = (error, hasBrowserFallback) => {
   if (message === "UZBEKVOICE_SERVER_KEY_MISSING") {
     return "Vercel serverida UzbekVoice STT kaliti yo'q. Environment variable ni qo'shing.";
   }
-  if (message === "BROWSER_STT_EMPTY") {
-    return hasBrowserFallback
-      ? "Brauzer ovozdan matn chiqara olmadi. Qayta yozib yoki boshqa brauzerda urinib ko'ring."
-      : "Ovozdan matn olinmadi. Qayta urinib ko'ring.";
-  }
   if (message === "EMPTY_AUDIO") {
     return "Bo'sh audio yuborildi. Yana bir marta yozib ko'ring.";
   }
@@ -554,9 +513,7 @@ const resolveVoiceError = (error, hasBrowserFallback) => {
     return "Yozilgan audio formati mos kelmadi. Qayta yozib ko'ring.";
   }
   if (/proxy|fetch failed|failed to fetch/i.test(message)) {
-    return hasBrowserFallback
-      ? "UzbekVoice STT ulanmayapti. Vaqtincha brauzer orqali transcript olindi."
-      : "STT serveriga ulanib bo'lmadi. Qayta urinib ko'ring.";
+    return "STT serveriga ulanib bo'lmadi. Telefoningizda internetni va Vercel deploy'ni tekshirib qayta urinib ko'ring.";
   }
 
   return "Ovozni matnga aylantirib bo'lmadi. Qayta urinib ko'ring.";

@@ -1,3 +1,4 @@
+
 import { NavLink } from "react-router-dom";
 import { Home, ReceiptText, BarChart3, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";

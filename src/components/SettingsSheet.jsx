@@ -4,7 +4,7 @@ import { Database, Volume2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ThemeToggle from "./ThemeToggle";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { hasUzbekVoiceKey, hasUzbekVoiceTtsKey } from "../lib/uzbekVoice";
+import { hasUzbekVoiceKey } from "../lib/uzbekVoice";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useAccessibleDialog } from "../hooks/useAccessibleDialog";
 
@@ -65,12 +65,6 @@ const SettingsSheet = () => {
                 title="Offline saqlash"
                 hint="Yozuvlar brauzer ichida saqlanadi va offline ko'rinadi."
                 icon={<Database className="h-5 w-5 text-ink-400 dark:text-ink-500" aria-hidden="true" />}
-              />
-
-              <InfoRow
-                title="UzbekVoice TTS"
-                hint={hasUzbekVoiceTtsKey() ? t("lolaReady") : t("ttsMissing")}
-                icon={<Volume2 className="h-5 w-5 text-ink-400 dark:text-ink-500" aria-hidden="true" />}
               />
 
               <InfoRow

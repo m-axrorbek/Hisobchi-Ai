@@ -111,7 +111,6 @@ Time and amount are intentionally kept conservative so the app does not silently
 api/
   assistant/analyze.js
   uzbekvoice/stt.js
-  uzbekvoice/tts.js
 server/
   src/
     app.js
@@ -170,11 +169,8 @@ The MVP remains frontend-first. If the local API is down, the app still falls ba
 
 ### Root `.env`
 
-- `VITE_UZBEKVOICE_API_KEY`
-- `VITE_UZBEKVOICE_TTS_KEY`
-- `VITE_UZBEKVOICE_TTS_MODEL`
 - `VITE_UZBEKVOICE_STT_URL`
-- `VITE_UZBEKVOICE_TTS_URL`
+- `UZBEKVOICE_API_KEY`
 
 ### `server/.env`
 
@@ -190,12 +186,7 @@ Set these in the Vercel project:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `UZBEKVOICE_API_KEY`
-- `UZBEKVOICE_TTS_KEY`
-- `VITE_UZBEKVOICE_API_KEY` optional for local/dev-style client auth
-- `VITE_UZBEKVOICE_TTS_KEY` optional for local/dev-style client auth
-- `VITE_UZBEKVOICE_TTS_MODEL`
 - `VITE_UZBEKVOICE_STT_URL=/api/uzbekvoice/stt`
-- `VITE_UZBEKVOICE_TTS_URL=/api/uzbekvoice/tts`
 
 ## Notes
 

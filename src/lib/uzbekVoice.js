@@ -1,8 +1,4 @@
-const UZBEKVOICE_API_KEY = import.meta.env.VITE_UZBEKVOICE_API_KEY;
-const UZBEKVOICE_TTS_KEY = import.meta.env.VITE_UZBEKVOICE_TTS_KEY;
-const UZBEKVOICE_TTS_MODEL = import.meta.env.VITE_UZBEKVOICE_TTS_MODEL || "lola";
 const STT_ENDPOINT = import.meta.env.VITE_UZBEKVOICE_STT_URL || "/api/uzbekvoice/stt";
-const TTS_ENDPOINT = import.meta.env.VITE_UZBEKVOICE_TTS_URL || "/api/uzbekvoice/tts";
 
 const AUDIO_EXTENSION_BY_TYPE = {
   "audio/webm": "webm",
@@ -13,11 +9,7 @@ const AUDIO_EXTENSION_BY_TYPE = {
   "audio/mpeg": "mp3"
 };
 
-const isServerProxyEndpoint = (value) => typeof value === "string" && value.startsWith("/api/");
-
-export const hasUzbekVoiceKey = () => Boolean(UZBEKVOICE_API_KEY || isServerProxyEndpoint(STT_ENDPOINT));
-export const hasUzbekVoiceTtsKey = () =>
-  Boolean(UZBEKVOICE_TTS_KEY || UZBEKVOICE_API_KEY || isServerProxyEndpoint(TTS_ENDPOINT));
+export const hasUzbekVoiceKey = () => Boolean(String(STT_ENDPOINT || "").trim());
 
 const getAudioFilename = (blob) => {
   const extension = AUDIO_EXTENSION_BY_TYPE[blob?.type] || "webm";
@@ -43,7 +35,7 @@ const readErrorMessage = async (response) => {
 };
 
 export const transcribeAudio = async (blob) => {
-  if (!UZBEKVOICE_API_KEY && !isServerProxyEndpoint(STT_ENDPOINT)) {
+  if (!STT_ENDPOINT) {
     throw new Error("UZBEKVOICE_KEY_MISSING");
   }
 
@@ -64,16 +56,11 @@ export const transcribeAudio = async (blob) => {
 
   let response;
   try {
-    const headers = {
-      Accept: "application/json"
-    };
-    if (UZBEKVOICE_API_KEY) {
-      headers.Authorization = UZBEKVOICE_API_KEY;
-    }
-
     response = await fetch(STT_ENDPOINT, {
       method: "POST",
-      headers,
+      headers: {
+        Accept: "application/json"
+      },
       body: form,
       signal: controller.signal
     });
@@ -101,55 +88,4 @@ export const transcribeAudio = async (blob) => {
   }
 
   return transcript;
-};
-
-export const synthesizeSpeech = async (text) => {
-  const apiKey = UZBEKVOICE_TTS_KEY || UZBEKVOICE_API_KEY;
-  if (!apiKey && !isServerProxyEndpoint(TTS_ENDPOINT)) {
-    throw new Error("UZBEKVOICE_TTS_KEY_MISSING");
-  }
-
-  const headers = {
-    "Content-Type": "application/json",
-    Accept: "application/json, audio/mpeg, audio/wav, audio/*"
-  };
-  if (apiKey) {
-    headers.Authorization = apiKey;
-  }
-
-  const response = await fetch(TTS_ENDPOINT, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      text,
-      model: UZBEKVOICE_TTS_MODEL,
-      blocking: "true",
-      webhook_notification_url: "https://example.com"
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await readErrorMessage(response);
-    throw new Error(errorText || "UZBEKVOICE_TTS_FAILED");
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    const data = await response.json();
-    const audioUrl = data.audio_url || data.result?.url || data.result?.audio_url || data.url;
-
-    if (audioUrl) {
-      return audioUrl;
-    }
-
-    if (data.audio_base64 || data.result?.audio_base64) {
-      const binary = atob(data.audio_base64 || data.result?.audio_base64);
-      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-      return new Blob([bytes], { type: "audio/mpeg" });
-    }
-
-    throw new Error(`UZBEKVOICE_TTS_EMPTY:${JSON.stringify(data)}`);
-  }
-
-  return await response.blob();
 };
