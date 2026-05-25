@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import { format } from "date-fns";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -181,19 +181,20 @@ const ManualRecordSheet = () => {
             </CardHeader>
             <CardContent className="max-h-[calc(100vh-10rem)] overflow-y-auto">
               <form className="grid gap-2.5" onSubmit={submit}>
-                <Field label="Yozuv turi" htmlFor={typeId} required>
-                  <select
+                <Field label="Yozuv turi" htmlFor={typeId} required error={errors.type}>
+                  <SelectControl
                     id={typeId}
                     ref={typeRef}
                     value={form.type}
                     onChange={(event) => updateField("type", event.target.value)}
-                    className={getInputClassName(errors.type)}
+                    error={errors.type}
+                    aria-invalid={Boolean(errors.type)}
                   >
                     <option value="expense">Xarajat</option>
                     <option value="debt_taken">Qarz oldim</option>
                     <option value="debt_given">Qarz berdim</option>
                     <option value="income">Daromad</option>
-                  </select>
+                  </SelectControl>
                 </Field>
 
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -235,11 +236,11 @@ const ManualRecordSheet = () => {
                     />
                   </Field>
                   <Field label="Kategoriya" htmlFor={categoryId} required error={errors.category}>
-                    <select
+                    <SelectControl
                       id={categoryId}
                       value={form.category}
                       onChange={(event) => updateField("category", event.target.value)}
-                      className={getInputClassName(errors.category)}
+                      error={errors.category}
                       aria-invalid={Boolean(errors.category)}
                     >
                       {CATEGORY_OPTIONS.map((category) => (
@@ -247,7 +248,7 @@ const ManualRecordSheet = () => {
                           {category}
                         </option>
                       ))}
-                    </select>
+                    </SelectControl>
                   </Field>
                 </div>
 
@@ -300,17 +301,17 @@ const ManualRecordSheet = () => {
                 {isDebt ? (
                   <div className="grid gap-2.5 sm:grid-cols-2">
                     <Field label="To'lov holati" htmlFor={paymentStatusId} required error={errors.payment_status}>
-                      <select
+                      <SelectControl
                         id={paymentStatusId}
                         value={form.payment_status}
                         onChange={(event) => updateField("payment_status", event.target.value)}
-                        className={getInputClassName(errors.payment_status)}
+                        error={errors.payment_status}
                         aria-invalid={Boolean(errors.payment_status)}
                       >
                         <option value="unpaid">To'lanmagan</option>
                         <option value="partial">Qisman to'langan</option>
                         <option value="paid">To'langan</option>
-                      </select>
+                      </SelectControl>
                     </Field>
                     <Field label="To'langan summa" htmlFor={paidAmountId} required error={errors.paid_amount}>
                       <Input
@@ -371,6 +372,19 @@ function Field({ label, htmlFor, children, error = "", required = false }) {
     </div>
   );
 }
+
+const SelectControl = forwardRef(({ children, error = "", className = "", ...props }, ref) => (
+  <div className="relative">
+    <select ref={ref} className={cn(getInputClassName(error, { select: true }), className)} {...props}>
+      {children}
+    </select>
+    <ChevronDown
+      className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400 dark:text-ink-500"
+      aria-hidden="true"
+    />
+  </div>
+));
+SelectControl.displayName = "SelectControl";
 
 const getFieldIdMap = (baseId) => ({
   type: `${baseId}-type`,
@@ -482,10 +496,11 @@ const stringifyFieldValue = (value, fallback = "") => {
   return String(value);
 };
 
-const getInputClassName = (error) =>
+const getInputClassName = (error, options = {}) =>
   cn(
-    "h-10 w-full rounded-xl border bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 dark:bg-ink-900 dark:text-ink-100",
+    "h-10 w-full rounded-xl border bg-white px-3 text-sm text-ink-900 shadow-none outline-none transition-[border-color,box-shadow,background-color] focus:border-ink-400 focus:ring-1 focus:ring-ink-300/45 dark:bg-black/20 dark:text-ink-100 dark:focus:border-white/35 dark:focus:ring-white/10",
+    options.select && "appearance-none pr-10",
     error
-      ? "border-red-300 focus-visible:ring-red-200 dark:border-red-500/70 dark:focus-visible:ring-red-500/20"
-      : "border-ink-200 focus-visible:ring-ink-400 dark:border-ink-700"
+      ? "border-red-300 focus:border-red-400 focus:ring-red-300/35 dark:border-red-500/70 dark:focus:border-red-400 dark:focus:ring-red-500/20"
+      : "border-ink-200 hover:border-ink-300 dark:border-white/10 dark:hover:border-white/20"
   );
