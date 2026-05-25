@@ -2,17 +2,37 @@ const STT_ENDPOINT = import.meta.env.VITE_UZBEKVOICE_STT_URL || "/api/uzbekvoice
 
 const AUDIO_EXTENSION_BY_TYPE = {
   "audio/webm": "webm",
-  "audio/webm;codecs=opus": "webm",
   "audio/ogg": "ogg",
-  "audio/ogg;codecs=opus": "ogg",
-  "audio/mp4": "mp4",
-  "audio/mpeg": "mp3"
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/m4a": "m4a",
+  "audio/aac": "aac",
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/wave": "wav",
+  "audio/3gpp": "3gp",
+  "video/mp4": "mp4"
 };
 
 export const hasUzbekVoiceKey = () => Boolean(String(STT_ENDPOINT || "").trim());
 
+const normalizeMimeType = (value) => String(value || "").split(";")[0].trim().toLowerCase();
+
+const readExtensionFromName = (name) => {
+  const raw = String(name || "").trim();
+  if (!raw.includes(".")) {
+    return "";
+  }
+
+  return raw.split(".").pop().trim().toLowerCase();
+};
+
 const getAudioFilename = (blob) => {
-  const extension = AUDIO_EXTENSION_BY_TYPE[blob?.type] || "webm";
+  const extension =
+    AUDIO_EXTENSION_BY_TYPE[normalizeMimeType(blob?.type)] ||
+    readExtensionFromName(blob?.name) ||
+    "webm";
   return `audio.${extension}`;
 };
 

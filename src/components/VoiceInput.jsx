@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Mic, Square, Trash2, Play, Send } from "lucide-react";
+import { Mic, Square, Trash2, Play, Send, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -31,12 +31,15 @@ const VoiceInput = ({
   const [transcriptPreview, setTranscriptPreview] = useState("");
   const [voiceError, setVoiceError] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
   const audioRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const canRecord = Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+  const canUploadAudio = Boolean(window.File && window.FormData);
   const hasRemoteStt = hasUzbekVoiceKey();
 
   const stopTracks = useCallback(() => {
@@ -58,12 +61,33 @@ const VoiceInput = ({
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
     }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
     setAudioUrl("");
     setAudioBlob(null);
+    setRecordingDuration(0);
     if (clearTranscript) {
       setTranscriptPreview("");
     }
   }, [audioUrl, stopPlayback]);
+
+  useEffect(() => {
+    if (!isRecording) {
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    setRecordingDuration(0);
+
+    const intervalId = window.setInterval(() => {
+      setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isRecording]);
 
   useEffect(() => {
     return () => {
@@ -87,6 +111,7 @@ const VoiceInput = ({
       setVoiceError("");
       setStatusText("");
       resetAudio();
+      setRecordingDuration(0);
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -156,6 +181,32 @@ const VoiceInput = ({
     }
     setIsRecording(false);
   }, []);
+
+  const selectAudioFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAudioFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setVoiceError("");
+    setStatusText("");
+    resetAudio();
+    setTranscriptPreview("");
+
+    if (!file.size) {
+      setVoiceError("Tanlangan audio bo'sh. Boshqa fayl tanlang yoki qayta yozib ko'ring.");
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setAudioBlob(file);
+    setAudioUrl(url);
+    setStatusText("Audio tayyor. Endi matnga o'tkazing.");
+  };
 
   const playAudio = async () => {
     if (!audioUrl) return;
@@ -254,35 +305,85 @@ const VoiceInput = ({
   };
 
   const micDisabled = !hasRemoteStt || isTranscribing || isSubmittingText || !canRecord;
+  const uploadDisabled = !hasRemoteStt || isTranscribing || isSubmittingText || !canUploadAudio;
   const showEditor = forceEditor || Boolean(value?.trim());
+  const hasRecordedAudio = Boolean(audioBlob && !isRecording);
+  const fallbackHelperText =
+    hasRemoteStt && !canRecord && canUploadAudio ? t("audioUploadHint") : hasRemoteStt ? t("aiReady") : t("sttMissing");
   const helperText =
-    voiceError || statusText || (isRecording ? t("recording") : hasRemoteStt ? t("aiReady") : t("sttMissing"));
+    voiceError || statusText || (isRecording ? t("recording") : fallbackHelperText);
   const showHelperText = Boolean(voiceError || statusText || isRecording || !hasRemoteStt || !canRecord);
   const micTitle = micLabel || (isRecording ? t("stopRecording") : t("startRecording"));
 
   if (variant === "dock") {
     return (
       <div className="flex w-full flex-col items-center gap-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={AUDIO_FILE_ACCEPT}
+          capture="user"
+          className="sr-only"
+          onChange={handleAudioFileChange}
+        />
         <div className="flex items-center justify-center gap-4">
           <div className="group relative">
+            {isRecording ? <span className="absolute inset-[-10px] rounded-full bg-red-500/20 animate-ping" aria-hidden="true" /> : null}
             <Button
-              variant={isRecording ? "secondary" : "default"}
+              variant={isRecording ? "destructive" : "default"}
               onClick={isRecording ? stopRecording : startRecording}
               disabled={micDisabled}
-              className="h-16 w-16 rounded-full p-0"
+              className={`relative h-16 w-16 rounded-full p-0 ${isRecording ? "shadow-[0_0_0_8px_rgba(239,68,68,0.14)]" : ""}`}
               aria-label={micTitle}
+              aria-pressed={isRecording}
             >
               {isRecording ? <Square className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
             </Button>
-            <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-900 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-soft transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-ink-100 dark:text-ink-900">
-              {micTitle}
-            </span>
+            {!isRecording ? (
+              <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-900 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-soft transition-opacity group-hover:opacity-100 dark:bg-ink-100 dark:text-ink-900">
+                {micTitle}
+              </span>
+            ) : null}
           </div>
-          {sideAction}
+          {!isRecording ? (
+            <>
+              <div className="group relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={selectAudioFile}
+                  disabled={uploadDisabled}
+                  className="h-16 w-16 rounded-full p-0"
+                  aria-label={t("uploadAudio")}
+                >
+                  <Upload className="h-5 w-5" />
+                </Button>
+                <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-900 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-soft transition-opacity group-hover:opacity-100 dark:bg-ink-100 dark:text-ink-900">
+                  {t("uploadAudio")}
+                </span>
+              </div>
+              {sideAction}
+            </>
+          ) : null}
         </div>
+
+        {isRecording ? (
+          <div className="inline-flex items-center gap-3 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-red-700 shadow-soft dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100">
+            <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em]">REC {formatRecordingDuration(recordingDuration)}</span>
+            <span className="text-sm font-medium">Ovoz yozilyapti</span>
+          </div>
+        ) : null}
 
         {audioBlob ? (
           <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100">
+              <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+              Yozuv tayyor
+            </span>
             <button
               type="button"
               onClick={playAudio}
@@ -359,10 +460,14 @@ const VoiceInput = ({
                 </Button>
               </div>
             </div>
-          ) : transcriptPreview ? (
+          ) : transcriptPreview || hasRecordedAudio ? (
             <div className="mx-auto max-w-xs rounded-2xl border border-ink-200 bg-white px-3 py-2 text-left shadow-soft dark:border-ink-700 dark:bg-ink-800">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Oxirgi matn</p>
-              <p className="mt-1 text-sm text-ink-900 dark:text-ink-100">{transcriptPreview}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                {transcriptPreview ? "Oxirgi matn" : "Audio holati"}
+              </p>
+              <p className="mt-1 text-sm text-ink-900 dark:text-ink-100">
+                {transcriptPreview || "Audio yozib olindi. Matnga o'tkazish uchun yuborishni bosing."}
+              </p>
             </div>
           ) : null}
         </div>
@@ -377,11 +482,21 @@ const VoiceInput = ({
         <CardDescription>{t("inputPlaceholder")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={AUDIO_FILE_ACCEPT}
+          capture="user"
+          className="sr-only"
+          onChange={handleAudioFileChange}
+        />
         <div className="flex flex-wrap items-center gap-3">
           <Button
-            variant={isRecording ? "secondary" : "default"}
+            variant={isRecording ? "destructive" : "default"}
             onClick={isRecording ? stopRecording : startRecording}
             disabled={micDisabled}
+            className={isRecording ? "shadow-[0_0_0_8px_rgba(239,68,68,0.14)]" : ""}
+            aria-pressed={isRecording}
           >
             {isRecording ? (
               <>
@@ -389,20 +504,40 @@ const VoiceInput = ({
               </>
             ) : (
               <>
-              <Mic className="h-4 w-4" /> {t("startRecording")}
+                <Mic className="h-4 w-4" /> {t("startRecording")}
+              </>
+            )}
+          </Button>
+          {!isRecording ? (
+            <>
+              <Button variant="outline" size="sm" onClick={selectAudioFile} disabled={uploadDisabled}>
+                <Upload className="h-4 w-4" /> {t("uploadAudio")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleClearRecording}>
+                <Trash2 className="h-4 w-4" /> {t("clearInput")}
+              </Button>
+              <span className={`text-sm ${voiceError ? "text-red-500" : "text-ink-500"}`} aria-hidden="true">
+                {voiceError || statusText || fallbackHelperText}
+              </span>
             </>
+          ) : (
+            <div className="inline-flex items-center gap-3 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100">
+              <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.22em]">REC {formatRecordingDuration(recordingDuration)}</span>
+              <span className="text-sm font-medium">Ovoz yozilyapti</span>
+            </div>
           )}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleClearRecording}>
-            <Trash2 className="h-4 w-4" /> {t("clearInput")}
-          </Button>
-          <span className={`text-sm ${voiceError ? "text-red-500" : "text-ink-500"}`} aria-hidden="true">
-            {voiceError || statusText || (isRecording ? t("recording") : hasRemoteStt ? t("aiReady") : t("sttMissing"))}
-          </span>
         </div>
 
         {audioBlob ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100">
+              <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+              Yozuv tayyor
+            </span>
             <Button variant="outline" size="sm" onClick={playAudio} aria-pressed={isPlaying}>
               {isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />} {t("playRecording")}
             </Button>
@@ -433,10 +568,12 @@ const VoiceInput = ({
           </Button>
         </div>
 
-        {transcriptPreview ? (
+        {transcriptPreview || hasRecordedAudio ? (
           <div className="rounded-2xl border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-800 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-100">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Oxirgi matn</p>
-            <p className="mt-1">{transcriptPreview}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+              {transcriptPreview ? "Oxirgi matn" : "Audio holati"}
+            </p>
+            <p className="mt-1">{transcriptPreview || "Audio yozib olindi. Endi matnga o'tkazishingiz mumkin."}</p>
           </div>
         ) : null}
 
@@ -453,10 +590,13 @@ const VoiceInput = ({
   );
 };
 
+const AUDIO_FILE_ACCEPT = "audio/*,.m4a,.mp3,.mp4,.wav,.ogg,.webm,.aac,.3gp";
+
 const getRecorderOptions = () => {
   const candidates = [
     "audio/webm;codecs=opus",
     "audio/webm",
+    "audio/mp4;codecs=mp4a.40.2",
     "audio/mp4",
     "audio/ogg;codecs=opus"
   ];
@@ -504,7 +644,7 @@ const resolveVoiceError = (error) => {
     return "UzbekVoice STT kaliti topilmadi. Sozlamani tekshirib qayta urinib ko'ring.";
   }
   if (message === "UZBEKVOICE_SERVER_KEY_MISSING") {
-    return "Vercel serverida UzbekVoice STT kaliti yo'q. Environment variable ni qo'shing.";
+    return "Vercel serverida UzbekVoice STT kaliti yo'q. UZBEKVOICE_API_KEY environment variable qo'shib, qayta deploy qiling.";
   }
   if (message === "EMPTY_AUDIO") {
     return "Bo'sh audio yuborildi. Yana bir marta yozib ko'ring.";
@@ -517,6 +657,13 @@ const resolveVoiceError = (error) => {
   }
 
   return "Ovozni matnga aylantirib bo'lmadi. Qayta urinib ko'ring.";
+};
+
+const formatRecordingDuration = (seconds) => {
+  const safeSeconds = Math.max(Number(seconds || 0), 0);
+  const minutes = String(Math.floor(safeSeconds / 60)).padStart(2, "0");
+  const remainder = String(safeSeconds % 60).padStart(2, "0");
+  return `${minutes}:${remainder}`;
 };
 
 export default VoiceInput;

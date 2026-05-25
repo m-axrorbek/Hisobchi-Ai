@@ -6,8 +6,16 @@ export const config = {
   }
 };
 
+const UZBEKVOICE_ENV_KEYS = ["UZBEKVOICE_API_KEY", "UZBEKVOICE_STT_API_KEY", "UZBEKVOICE_STT_KEY"];
+
+const getUzbekVoiceAuthorization = () => {
+  return (
+    UZBEKVOICE_ENV_KEYS.map((key) => process.env[key]).find((value) => Boolean(String(value || "").trim())) || ""
+  );
+};
+
 const buildHeaders = (headers, bodyLength) => {
-  const authorization = headers.authorization || process.env.UZBEKVOICE_API_KEY || "";
+  const authorization = headers.authorization || getUzbekVoiceAuthorization();
   const nextHeaders = {
     Accept: "application/json"
   };
@@ -31,8 +39,11 @@ export default async function handler(request, response) {
     return response.status(405).json({ message: "METHOD_NOT_ALLOWED" });
   }
 
-  if (!request.headers.authorization && !process.env.UZBEKVOICE_API_KEY) {
-    return response.status(500).json({ message: "UZBEKVOICE_SERVER_KEY_MISSING" });
+  if (!request.headers.authorization && !getUzbekVoiceAuthorization()) {
+    return response.status(500).json({
+      message: "UZBEKVOICE_SERVER_KEY_MISSING",
+      env: UZBEKVOICE_ENV_KEYS
+    });
   }
 
   try {

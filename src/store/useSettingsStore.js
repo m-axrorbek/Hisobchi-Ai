@@ -5,8 +5,21 @@ export const useSettingsStore = create()(
   persist(
     (set) => ({
       settingsOpen: false,
-      openSettings: () => set({ settingsOpen: true }),
-      closeSettings: () => set({ settingsOpen: false })
+      panelMode: "settings",
+      activeTab: "appearance",
+      openSettings: (activeTab = "appearance", panelMode = "settings") =>
+        set({
+          settingsOpen: true,
+          activeTab,
+          panelMode
+        }),
+      setActiveTab: (activeTab) => set({ activeTab }),
+      closeSettings: () =>
+        set({
+          settingsOpen: false,
+          panelMode: "settings",
+          activeTab: "appearance"
+        })
     }),
     {
       name: "kotiba-settings"

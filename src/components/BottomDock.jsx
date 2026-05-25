@@ -29,7 +29,7 @@ const BottomDock = () => {
             </NavLink>
             <button
               type="button"
-              onClick={openSettings}
+              onClick={() => openSettings("appearance", "settings")}
               className="rounded-full p-2.5 text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-300 dark:hover:text-white"
               aria-label={t("settings")}
               aria-haspopup="dialog"

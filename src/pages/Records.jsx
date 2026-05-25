@@ -1,6 +1,8 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { MoreVertical } from "lucide-react";
+import ActionDialog from "../components/ActionDialog";
 import DebtResolutionSheet from "../components/DebtResolutionSheet";
+import FeedbackToast from "../components/FeedbackToast";
 import ManualRecordSheet from "../components/ManualRecordSheet";
 import RecordList from "../components/RecordList";
 import RecordsToolsSheet from "../components/RecordsToolsSheet";
@@ -33,6 +35,8 @@ const Records = () => {
   const [dayFilter, setDayFilter] = useState("");
   const [toolsOpen, setToolsOpen] = useState(false);
   const [resolution, setResolution] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [dialogState, setDialogState] = useState(null);
 
   const typeFilteredRecords = useMemo(() => getRecordsByFilter(records, filter, showArchived), [filter, records, showArchived]);
   const filteredRecords = useMemo(
@@ -41,6 +45,20 @@ const Records = () => {
   );
   const dailyExpenseSummary = useMemo(() => buildDailyExpenseSummary(records).slice(0, 7), [records]);
   const hasToolsState = Boolean(dayFilter || showArchived);
+
+  useEffect(() => {
+    if (!feedback) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [feedback]);
 
   const handleSelectDay = (value) => {
     setDayFilter(value);
@@ -58,13 +76,57 @@ const Records = () => {
   };
 
   const handleExportCsv = () => {
-    exportRecordsToCsv(filteredRecords);
+    const result = exportRecordsToCsv(filteredRecords);
+    if (!result?.ok) {
+      setToolsOpen(false);
+      setDialogState(buildExportDialog(result.code, "CSV"));
+      return;
+    }
+
+    setFeedback({
+      tone: "success",
+      text: "CSV hisobot yuklandi."
+    });
     setToolsOpen(false);
   };
 
   const handleExportPdf = () => {
-    exportRecordsToPrintableReport(filteredRecords);
+    const result = exportRecordsToPrintableReport(filteredRecords);
+    if (!result?.ok) {
+      setToolsOpen(false);
+      setDialogState(buildExportDialog(result.code, "PDF"));
+      return;
+    }
+
+    setFeedback({
+      tone: "success",
+      text: "PDF hisobot oynasi ochildi."
+    });
     setToolsOpen(false);
+  };
+
+  const handleRequestDelete = (record) => {
+    setDialogState({
+      mode: "delete",
+      tone: "destructive",
+      title: "Bu qaydni o'chirmoqchimisiz?",
+      description: `"${record.item || "Yozuv"}" qaydi o'chiriladi. Bu amalni keyin ortga qaytarib bo'lmaydi.`,
+      confirmLabel: "Ha, o'chirish",
+      cancelLabel: "Bekor qilish",
+      recordId: record.id
+    });
+  };
+
+  const handleDialogConfirm = () => {
+    if (dialogState?.mode === "delete" && dialogState.recordId) {
+      deleteRecord(dialogState.recordId);
+      setFeedback({
+        tone: "warning",
+        text: "Qayd o'chirildi."
+      });
+    }
+
+    setDialogState(null);
   };
 
   return (
@@ -106,7 +168,7 @@ const Records = () => {
         onEdit={(record) => openComposer(record, "edit")}
         onArchive={archiveRecord}
         onRestore={restoreRecord}
-        onDelete={deleteRecord}
+        onDelete={handleRequestDelete}
         onMarkPaid={(record) => markDebtPaid(record.id)}
         onPartialPayment={(debt) =>
           setResolution({
@@ -116,6 +178,8 @@ const Records = () => {
           })
         }
       />
+
+      <FeedbackToast feedback={feedback} />
 
       <ManualRecordSheet />
       <RecordsToolsSheet
@@ -158,8 +222,39 @@ const Records = () => {
           setResolution(null);
         }}
       />
+      <ActionDialog
+        open={Boolean(dialogState)}
+        tone={dialogState?.tone || "warning"}
+        title={dialogState?.title || ""}
+        description={dialogState?.description || ""}
+        confirmLabel={dialogState?.confirmLabel || "Tushunarli"}
+        cancelLabel={dialogState?.cancelLabel || "Bekor qilish"}
+        showCancel={dialogState?.mode === "delete"}
+        onConfirm={handleDialogConfirm}
+        onClose={() => setDialogState(null)}
+      />
     </div>
   );
 };
 
 export default Records;
+
+const buildExportDialog = (code, formatName) => {
+  if (code === "POPUP_BLOCKED") {
+    return {
+      mode: "notice",
+      tone: "warning",
+      title: `${formatName} oynasi ochilmadi`,
+      description: "Brauzer yangi oynani bloklagan ko'rinadi. Popup ruxsatini yoqib, yana urinib ko'ring.",
+      confirmLabel: "Tushundim"
+    };
+  }
+
+  return {
+    mode: "notice",
+    tone: "warning",
+    title: `${formatName} uchun yozuv topilmadi`,
+    description: "Hisobot yuklashdan oldin kamida bitta yozuv qo'shing yoki filtrni bo'shating.",
+    confirmLabel: "Tushundim"
+  };
+};

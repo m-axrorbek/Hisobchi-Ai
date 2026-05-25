@@ -109,7 +109,7 @@ const RecordList = ({
                         </Button>
                       ) : null}
                       {onDelete ? (
-                        <Button size="sm" variant="ghost" onClick={() => onDelete(record.id)}>
+                        <Button size="sm" variant="destructive" onClick={() => onDelete(record)}>
                           <Trash2 className="h-4 w-4" /> O'chirish
                         </Button>
                       ) : null}
@@ -122,7 +122,7 @@ const RecordList = ({
                         </Button>
                       ) : null}
                       {onDelete ? (
-                        <Button size="sm" variant="ghost" onClick={() => onDelete(record.id)}>
+                        <Button size="sm" variant="destructive" onClick={() => onDelete(record)}>
                           <Trash2 className="h-4 w-4" /> Butunlay o'chirish
                         </Button>
                       ) : null}

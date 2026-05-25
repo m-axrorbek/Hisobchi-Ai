@@ -6,7 +6,10 @@ const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export const exportRecordsToCsv = (records) => {
   if (!ensureExportableRecords(records)) {
-    return;
+    return {
+      ok: false,
+      code: "EMPTY_RECORDS"
+    };
   }
 
   const rows = [
@@ -28,11 +31,17 @@ export const exportRecordsToCsv = (records) => {
 
   const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
   downloadFile(csv, `hisobchi-ai-${format(new Date(), "yyyy-MM-dd")}.csv`, "text/csv;charset=utf-8;");
+  return {
+    ok: true
+  };
 };
 
 export const exportRecordsToPrintableReport = (records) => {
   if (!ensureExportableRecords(records)) {
-    return;
+    return {
+      ok: false,
+      code: "EMPTY_RECORDS"
+    };
   }
 
   const analytics = buildMoneyAnalytics(records);
@@ -53,7 +62,10 @@ export const exportRecordsToPrintableReport = (records) => {
 
   const reportWindow = window.open("", "_blank", "width=960,height=720");
   if (!reportWindow) {
-    return;
+    return {
+      ok: false,
+      code: "POPUP_BLOCKED"
+    };
   }
 
   reportWindow.document.write(`
@@ -98,6 +110,9 @@ export const exportRecordsToPrintableReport = (records) => {
   reportWindow.document.close();
   reportWindow.focus();
   reportWindow.print();
+  return {
+    ok: true
+  };
 };
 
 const downloadFile = (content, filename, mimeType) => {
@@ -113,10 +128,6 @@ const downloadFile = (content, filename, mimeType) => {
 const ensureExportableRecords = (records) => {
   if (Array.isArray(records) && records.length > 0) {
     return true;
-  }
-
-  if (typeof window !== "undefined") {
-    window.alert("Yozuvlar yoki xarajatlar mavjud emas.");
   }
 
   return false;

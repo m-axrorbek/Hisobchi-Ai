@@ -16,6 +16,8 @@ export const translations = {
       clearInput: "Tozalash",
       playRecording: "Eshitish",
       transcribeRecording: "Matnga o'tkazish",
+      uploadAudio: "Audio tanlash",
+      audioUploadHint: "Mikrofon ishlamasa, audio fayl tanlab matnga o'tkazing.",
       submitReminder: "Yozuvni yuborish",
       reviewTranscript: "Matnni tekshiring",
       reviewTranscriptHint: "Summa, odam va do'konni tekshirib, kerak bo'lsa to'g'rilang.",

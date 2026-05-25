@@ -181,12 +181,14 @@ The MVP remains frontend-first. If the local API is down, the app still falls ba
 
 ## Vercel
 
-Set these in the Vercel project:
+In Vercel, open Project Settings -> Environment Variables and set these for Production (and Preview if you test preview deploys):
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
-- `UZBEKVOICE_API_KEY`
+- `UZBEKVOICE_API_KEY` (required for `/api/uzbekvoice/stt`; aliases also supported: `UZBEKVOICE_STT_API_KEY`, `UZBEKVOICE_STT_KEY`)
 - `VITE_UZBEKVOICE_STT_URL=/api/uzbekvoice/stt`
+
+After adding or changing a Vercel Environment Variable, redeploy the project so the serverless function receives the new value.
 
 ## Notes
 

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { format } from "date-fns";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "./ui/button";
@@ -8,29 +9,53 @@ import { Textarea } from "./ui/textarea";
 import { CATEGORY_OPTIONS } from "../lib/money/categories.js";
 import { useMoneyStore } from "../store/useMoneyStore";
 import { useAccessibleDialog } from "../hooks/useAccessibleDialog";
+import { cn } from "../lib/utils";
 
-const EMPTY_FORM = {
-  type: "expense",
-  item: "",
-  quantity: 1,
-  unit_price: 0,
-  amount: "",
-  category: "boshqa",
-  person: "",
-  store: "",
-  payment_status: "unpaid",
-  paid_amount: "",
-  remaining_amount: "",
-  date: "",
-  time: "",
-  note: ""
+const FIELD_ORDER = ["item", "amount", "quantity", "category", "person", "store", "date", "time", "payment_status", "paid_amount"];
+
+const buildFormState = (draft = null) => {
+  const now = new Date();
+  const next = syncFormState({
+    type: "expense",
+    item: "",
+    quantity: "1",
+    unit_price: 0,
+    amount: "",
+    category: "boshqa",
+    person: "",
+    store: "",
+    payment_status: "unpaid",
+    paid_amount: "0",
+    remaining_amount: "",
+    date: format(now, "yyyy-MM-dd"),
+    time: format(now, "HH:mm"),
+    note: "",
+    ...(draft || {})
+  });
+
+  return {
+    ...next,
+    quantity: stringifyFieldValue(next.quantity, "1"),
+    amount: stringifyFieldValue(next.amount),
+    paid_amount: stringifyFieldValue(next.paid_amount, isDebtType(next.type) ? "0" : ""),
+    remaining_amount: stringifyFieldValue(next.remaining_amount),
+    date: stringifyFieldValue(next.date, format(now, "yyyy-MM-dd")),
+    time: stringifyFieldValue(next.time, format(now, "HH:mm")),
+    item: stringifyFieldValue(next.item),
+    category: stringifyFieldValue(next.category, "boshqa"),
+    person: stringifyFieldValue(next.person),
+    store: stringifyFieldValue(next.store),
+    note: stringifyFieldValue(next.note),
+    payment_status: stringifyFieldValue(next.payment_status, "unpaid")
+  };
 };
 
 const ManualRecordSheet = () => {
   const composer = useMoneyStore((state) => state.composer);
   const saveRecord = useMoneyStore((state) => state.saveRecord);
   const closeComposer = useMoneyStore((state) => state.closeComposer);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(() => buildFormState());
+  const [errors, setErrors] = useState({});
   const titleId = useId();
   const descriptionId = useId();
   const baseId = useId();
@@ -46,10 +71,8 @@ const ManualRecordSheet = () => {
       return;
     }
 
-    setForm({
-      ...EMPTY_FORM,
-      ...composer.draft
-    });
+    setForm(buildFormState(composer.draft));
+    setErrors({});
   }, [composer]);
 
   if (!composer.open) {
@@ -58,19 +81,20 @@ const ManualRecordSheet = () => {
 
   const updateField = (key, value) => {
     setForm((current) => {
-      const next = {
+      const next = syncFormState({
         ...current,
         [key]: value
+      });
+
+      return {
+        ...next,
+        quantity: stringifyFieldValue(next.quantity, ""),
+        amount: stringifyFieldValue(next.amount),
+        paid_amount: stringifyFieldValue(next.paid_amount, isDebtType(next.type) ? "0" : ""),
+        remaining_amount: stringifyFieldValue(next.remaining_amount)
       };
-
-      if (key === "amount" || key === "quantity") {
-        const amount = Number(key === "amount" ? value : next.amount) || 0;
-        const quantity = Number(key === "quantity" ? value : next.quantity) || 1;
-        next.unit_price = quantity > 0 ? Math.round(amount / quantity) : amount;
-      }
-
-      return next;
     });
+    setErrors((current) => (current[key] ? { ...current, [key]: "" } : current));
   };
 
   const handleNumericField = (key, value) => {
@@ -79,22 +103,45 @@ const ManualRecordSheet = () => {
 
   const submit = (event) => {
     event.preventDefault();
-    saveRecord(form, { now: new Date() });
+    const nextErrors = validateForm(form);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      const firstInvalidKey = FIELD_ORDER.find((key) => nextErrors[key]);
+      if (firstInvalidKey) {
+        window.requestAnimationFrame(() => {
+          document.getElementById(getFieldIdMap(baseId)[firstInvalidKey])?.focus();
+        });
+      }
+      return;
+    }
+
+    saveRecord(
+      {
+        ...form,
+        quantity: Number(form.quantity || 0),
+        amount: Number(form.amount || 0),
+        paid_amount: isDebtType(form.type) ? Number(form.paid_amount || 0) : Number(form.amount || 0),
+        remaining_amount: isDebtType(form.type) ? Number(form.remaining_amount || 0) : 0
+      },
+      { now: new Date() }
+    );
   };
 
   const isDebt = form.type === "debt_taken" || form.type === "debt_given";
-  const typeId = `${baseId}-type`;
-  const itemId = `${baseId}-item`;
-  const amountId = `${baseId}-amount`;
-  const quantityId = `${baseId}-quantity`;
-  const categoryId = `${baseId}-category`;
-  const personId = `${baseId}-person`;
-  const storeId = `${baseId}-store`;
-  const dateId = `${baseId}-date`;
-  const timeId = `${baseId}-time`;
-  const paymentStatusId = `${baseId}-payment-status`;
-  const paidAmountId = `${baseId}-paid-amount`;
-  const noteId = `${baseId}-note`;
+  const fieldIds = getFieldIdMap(baseId);
+  const typeId = fieldIds.type;
+  const itemId = fieldIds.item;
+  const amountId = fieldIds.amount;
+  const quantityId = fieldIds.quantity;
+  const categoryId = fieldIds.category;
+  const personId = fieldIds.person;
+  const storeId = fieldIds.store;
+  const dateId = fieldIds.date;
+  const timeId = fieldIds.time;
+  const paymentStatusId = fieldIds.payment_status;
+  const paidAmountId = fieldIds.paid_amount;
+  const noteId = fieldIds.note;
 
   const content = (
     <div
@@ -120,7 +167,7 @@ const ManualRecordSheet = () => {
                   {composer.mode === "edit" ? "Yozuvni tahrirlash" : "Qo'lda yozuv qo'shish"}
                 </CardTitle>
                 <p id={descriptionId} className="text-xs text-ink-500 dark:text-ink-400">
-                  Xarajat, qarz yoki daromadni qo'lda aniq maydonlar orqali kiriting.
+                  Izohdan tashqari barcha maydonlarni to'ldiring. Xarajat, qarz yoki daromad shu yerda aniq saqlanadi.
                 </p>
               </div>
               <button
@@ -134,13 +181,13 @@ const ManualRecordSheet = () => {
             </CardHeader>
             <CardContent className="max-h-[calc(100vh-10rem)] overflow-y-auto">
               <form className="grid gap-2.5" onSubmit={submit}>
-                <Field label="Yozuv turi" htmlFor={typeId}>
+                <Field label="Yozuv turi" htmlFor={typeId} required>
                   <select
                     id={typeId}
                     ref={typeRef}
                     value={form.type}
                     onChange={(event) => updateField("type", event.target.value)}
-                    className="h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-100"
+                    className={getInputClassName(errors.type)}
                   >
                     <option value="expense">Xarajat</option>
                     <option value="debt_taken">Qarz oldim</option>
@@ -150,10 +197,17 @@ const ManualRecordSheet = () => {
                 </Field>
 
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Field label="Nima oldingiz" htmlFor={itemId}>
-                    <Input id={itemId} value={form.item} onChange={(event) => updateField("item", event.target.value)} placeholder="Nima oldingiz?" />
+                  <Field label="Nima oldingiz" htmlFor={itemId} required error={errors.item}>
+                    <Input
+                      id={itemId}
+                      value={form.item}
+                      onChange={(event) => updateField("item", event.target.value)}
+                      placeholder="Nima oldingiz?"
+                      aria-invalid={Boolean(errors.item)}
+                      className={getInputClassName(errors.item)}
+                    />
                   </Field>
-                  <Field label="Summa" htmlFor={amountId}>
+                  <Field label="Summa" htmlFor={amountId} required error={errors.amount}>
                     <Input
                       id={amountId}
                       type="text"
@@ -161,12 +215,14 @@ const ManualRecordSheet = () => {
                       value={form.amount}
                       onChange={(event) => handleNumericField("amount", event.target.value)}
                       placeholder="Summa"
+                      aria-invalid={Boolean(errors.amount)}
+                      className={getInputClassName(errors.amount)}
                     />
                   </Field>
                 </div>
 
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Field label="Miqdor" htmlFor={quantityId}>
+                  <Field label="Miqdor" htmlFor={quantityId} required error={errors.quantity}>
                     <Input
                       id={quantityId}
                       type="text"
@@ -174,14 +230,17 @@ const ManualRecordSheet = () => {
                       value={form.quantity}
                       onChange={(event) => handleNumericField("quantity", event.target.value)}
                       placeholder="Miqdor"
+                      aria-invalid={Boolean(errors.quantity)}
+                      className={getInputClassName(errors.quantity)}
                     />
                   </Field>
-                  <Field label="Kategoriya" htmlFor={categoryId}>
+                  <Field label="Kategoriya" htmlFor={categoryId} required error={errors.category}>
                     <select
                       id={categoryId}
                       value={form.category}
                       onChange={(event) => updateField("category", event.target.value)}
-                      className="h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-100"
+                      className={getInputClassName(errors.category)}
+                      aria-invalid={Boolean(errors.category)}
                     >
                       {CATEGORY_OPTIONS.map((category) => (
                         <option key={category} value={category}>
@@ -193,38 +252,67 @@ const ManualRecordSheet = () => {
                 </div>
 
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Field label="Odam" htmlFor={personId}>
-                    <Input id={personId} value={form.person} onChange={(event) => updateField("person", event.target.value)} placeholder="Odam" />
+                  <Field label="Odam" htmlFor={personId} required error={errors.person}>
+                    <Input
+                      id={personId}
+                      value={form.person}
+                      onChange={(event) => updateField("person", event.target.value)}
+                      placeholder="Odam"
+                      aria-invalid={Boolean(errors.person)}
+                      className={getInputClassName(errors.person)}
+                    />
                   </Field>
-                  <Field label="Do'kon" htmlFor={storeId}>
-                    <Input id={storeId} value={form.store} onChange={(event) => updateField("store", event.target.value)} placeholder="Do'kon" />
+                  <Field label="Do'kon" htmlFor={storeId} required error={errors.store}>
+                    <Input
+                      id={storeId}
+                      value={form.store}
+                      onChange={(event) => updateField("store", event.target.value)}
+                      placeholder="Do'kon"
+                      aria-invalid={Boolean(errors.store)}
+                      className={getInputClassName(errors.store)}
+                    />
                   </Field>
                 </div>
 
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Field label="Sana" htmlFor={dateId}>
-                    <Input id={dateId} type="date" value={form.date} onChange={(event) => updateField("date", event.target.value)} />
+                  <Field label="Sana" htmlFor={dateId} required error={errors.date}>
+                    <Input
+                      id={dateId}
+                      type="date"
+                      value={form.date}
+                      onChange={(event) => updateField("date", event.target.value)}
+                      aria-invalid={Boolean(errors.date)}
+                      className={getInputClassName(errors.date)}
+                    />
                   </Field>
-                  <Field label="Vaqt" htmlFor={timeId}>
-                    <Input id={timeId} type="time" value={form.time} onChange={(event) => updateField("time", event.target.value)} />
+                  <Field label="Vaqt" htmlFor={timeId} required error={errors.time}>
+                    <Input
+                      id={timeId}
+                      type="time"
+                      value={form.time}
+                      onChange={(event) => updateField("time", event.target.value)}
+                      aria-invalid={Boolean(errors.time)}
+                      className={getInputClassName(errors.time)}
+                    />
                   </Field>
                 </div>
 
                 {isDebt ? (
                   <div className="grid gap-2.5 sm:grid-cols-2">
-                    <Field label="To'lov holati" htmlFor={paymentStatusId}>
+                    <Field label="To'lov holati" htmlFor={paymentStatusId} required error={errors.payment_status}>
                       <select
                         id={paymentStatusId}
                         value={form.payment_status}
                         onChange={(event) => updateField("payment_status", event.target.value)}
-                        className="h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-100"
+                        className={getInputClassName(errors.payment_status)}
+                        aria-invalid={Boolean(errors.payment_status)}
                       >
                         <option value="unpaid">To'lanmagan</option>
                         <option value="partial">Qisman to'langan</option>
                         <option value="paid">To'langan</option>
                       </select>
                     </Field>
-                    <Field label="To'langan summa" htmlFor={paidAmountId}>
+                    <Field label="To'langan summa" htmlFor={paidAmountId} required error={errors.paid_amount}>
                       <Input
                         id={paidAmountId}
                         type="text"
@@ -232,6 +320,8 @@ const ManualRecordSheet = () => {
                         value={form.paid_amount}
                         onChange={(event) => handleNumericField("paid_amount", event.target.value)}
                         placeholder="To'langan summa"
+                        aria-invalid={Boolean(errors.paid_amount)}
+                        className={getInputClassName(errors.paid_amount)}
                       />
                     </Field>
                   </div>
@@ -267,13 +357,135 @@ const ManualRecordSheet = () => {
   return createPortal(content, document.body);
 };
 
-const Field = ({ label, htmlFor, children }) => (
-  <div className="space-y-1">
-    <label htmlFor={htmlFor} className="text-xs font-medium text-ink-600 dark:text-ink-300">
-      {label}
-    </label>
-    {children}
-  </div>
-);
-
 export default ManualRecordSheet;
+
+function Field({ label, htmlFor, children, error = "", required = false }) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor={htmlFor} className="text-xs font-medium text-ink-600 dark:text-ink-300">
+        {label}
+        {required ? <span className="ml-1 text-red-500">*</span> : null}
+      </label>
+      {children}
+      {error ? <p className="text-xs text-red-500">{error}</p> : null}
+    </div>
+  );
+}
+
+const getFieldIdMap = (baseId) => ({
+  type: `${baseId}-type`,
+  item: `${baseId}-item`,
+  amount: `${baseId}-amount`,
+  quantity: `${baseId}-quantity`,
+  category: `${baseId}-category`,
+  person: `${baseId}-person`,
+  store: `${baseId}-store`,
+  date: `${baseId}-date`,
+  time: `${baseId}-time`,
+  payment_status: `${baseId}-payment-status`,
+  paid_amount: `${baseId}-paid-amount`,
+  note: `${baseId}-note`
+});
+
+const isDebtType = (type) => type === "debt_taken" || type === "debt_given";
+
+const syncFormState = (form) => {
+  const amount = Math.max(Number(form.amount || 0) || 0, 0);
+  const quantity = Math.max(Number(form.quantity || 0) || 0, 0);
+  const next = {
+    ...form,
+    unit_price: quantity > 0 ? Math.round(amount / quantity) : amount
+  };
+
+  if (isDebtType(next.type)) {
+    next.payment_status = next.payment_status || "unpaid";
+
+    if (next.payment_status === "paid") {
+      next.paid_amount = amount > 0 ? String(amount) : "";
+      next.remaining_amount = "0";
+      return next;
+    }
+
+    if (next.payment_status === "unpaid") {
+      next.paid_amount = "0";
+      next.remaining_amount = amount > 0 ? String(amount) : "";
+      return next;
+    }
+
+    const paidAmount = Math.min(Math.max(Number(next.paid_amount || 0) || 0, 0), amount || Number.MAX_SAFE_INTEGER);
+    next.paid_amount = paidAmount > 0 ? String(paidAmount) : "";
+    next.remaining_amount = amount > 0 ? String(Math.max(amount - paidAmount, 0)) : "";
+    return next;
+  }
+
+  next.payment_status = "paid";
+  next.paid_amount = amount > 0 ? String(amount) : "";
+  next.remaining_amount = "0";
+  return next;
+};
+
+const validateForm = (form) => {
+  const nextErrors = {};
+
+  if (!String(form.item || "").trim()) {
+    nextErrors.item = "Nima olinganini kiriting.";
+  }
+  if (!hasPositiveValue(form.amount)) {
+    nextErrors.amount = "Summani kiriting.";
+  }
+  if (!hasPositiveValue(form.quantity)) {
+    nextErrors.quantity = "Miqdorni kiriting.";
+  }
+  if (!String(form.category || "").trim()) {
+    nextErrors.category = "Kategoriyani tanlang.";
+  }
+  if (!String(form.person || "").trim()) {
+    nextErrors.person = "Odam maydonini to'ldiring.";
+  }
+  if (!String(form.store || "").trim()) {
+    nextErrors.store = "Do'kon maydonini to'ldiring.";
+  }
+  if (!String(form.date || "").trim()) {
+    nextErrors.date = "Sanani tanlang.";
+  }
+  if (!String(form.time || "").trim()) {
+    nextErrors.time = "Vaqtni tanlang.";
+  }
+
+  if (isDebtType(form.type)) {
+    if (!String(form.payment_status || "").trim()) {
+      nextErrors.payment_status = "To'lov holatini tanlang.";
+    }
+
+    if (form.payment_status === "partial" && !hasPositiveValue(form.paid_amount)) {
+      nextErrors.paid_amount = "Qisman to'langan summani kiriting.";
+    }
+
+    if (form.payment_status === "partial" && Number(form.paid_amount || 0) >= Number(form.amount || 0)) {
+      nextErrors.paid_amount = "Qisman to'lov jami summadan kichik bo'lishi kerak.";
+    }
+  }
+
+  return nextErrors;
+};
+
+const hasPositiveValue = (value) => {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) && numeric > 0;
+};
+
+const stringifyFieldValue = (value, fallback = "") => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  return String(value);
+};
+
+const getInputClassName = (error) =>
+  cn(
+    "h-10 w-full rounded-xl border bg-white px-3 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 dark:bg-ink-900 dark:text-ink-100",
+    error
+      ? "border-red-300 focus-visible:ring-red-200 dark:border-red-500/70 dark:focus-visible:ring-red-500/20"
+      : "border-ink-200 focus-visible:ring-ink-400 dark:border-ink-700"
+  );
