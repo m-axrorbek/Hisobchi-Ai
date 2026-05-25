@@ -113,7 +113,13 @@ Return 3 separate expense records.
   "records": []
 }
 
-9. Return ONLY valid JSON.
+9. Date and time:
+- If the user says an exact time, use that exact time.
+- If the user uses relative date words like bugun, kecha, ertaga, resolve them from Current time.
+- If the user does not mention time, use the HH:mm from Current time exactly.
+- Never invent, randomize, or estimate a different time.
+
+10. Return ONLY valid JSON.
 No explanation.
 No markdown.
 No comments.`;
